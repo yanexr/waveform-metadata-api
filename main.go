@@ -135,12 +135,30 @@ func waveformHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		client := &http.Client{Timeout: ServerTimeout}
-		resp, err := client.Get(params.AudioURL)
+		req, err := http.NewRequest("GET", params.AudioURL, nil)
+		if err != nil {
+			http.Error(w, "Failed to create request: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("User-Agent", "Audiowaveform-API/1.0")
+
+		resp, err := client.Do(req)
 		if err != nil {
 			http.Error(w, "Failed to fetch audio from URL: "+err.Error(), http.StatusBadRequest)
 			return
 		}
 		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			http.Error(w, fmt.Sprintf("Failed to fetch audio from URL: status %d", resp.StatusCode), http.StatusBadRequest)
+			return
+		}
+
+		if resp.ContentLength > MaxAudioFileSize {
+			http.Error(w, "Audio file too large", http.StatusBadRequest)
+			return
+		}
+
 		audioData = io.LimitReader(resp.Body, MaxAudioFileSize)
 	}
 
